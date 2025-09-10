@@ -1,200 +1,280 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Apps Script Dashboard Project</title>
-  <style>
-    body{font-family:Arial,margin:12px;color:#172b4d}
-    header{display:flex;gap:8px;align-items:center;justify-content:space-between}
-    #tabs{margin-left:16px}
-    #tabs button{margin-right:6px;padding:8px;border-radius:6px;border:1px solid #ccc;background:#f3f6fb;cursor:pointer}
-    #tabs button.active{background:#0b63ff;color:#fff;border:none}
-    #main{margin-top:12px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:6px;border:1px solid #eee;text-align:left}
-    input,select,button{font-size:14px}
-    .muted{color:#637381}
-    .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 6px 20px rgba(20,30,60,0.04)}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apps Script Dashboard Project</title>
+<style>
+  /* ---------- base ---------- */
+  body{font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#f0f6ff 0%, #f7fbf9 100%);margin:0;padding:18px;color:#172b4d}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  header h1{font-size:18px;margin:0;color:#08203a}
+  .tabs{display:flex;gap:8px}
+  .tab{padding:8px 12px;border-radius:8px;background:#e9eef6;cursor:pointer;color:#08306b;font-weight:700}
+  .tab.active{background:#0b63ff;color:#fff;box-shadow:0 6px 20px rgba(11,99,255,0.12)}
+  .card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 6px 20px rgba(20,30,60,0.06);margin-bottom:12px}
+  label{display:block;font-weight:700;margin-top:8px;color:#234}
+  input,select,button,textarea{padding:8px;border-radius:8px;border:1px solid #d6dbe6;width:100%;box-sizing:border-box;font-size:14px;background:#fff}
+  select[multiple]{height:120px}
+  .row{display:flex;gap:12px}
+  .col{flex:1}
+  button.primary{background:#0b63ff;color:#fff;border:none;padding:10px 14px;border-radius:8px;cursor:pointer;font-weight:700}
+  .muted{color:#4f5b66;font-size:13px;margin-top:6px}
+  pre.debug{background:#071022;color:#dbe9ff;padding:10px;border-radius:6px;overflow:auto;max-height:220px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:8px;border-bottom:1px solid #eef3fb;text-align:left;vertical-align:top;font-size:13px}
+  th{background:#08306b;color:#fff;position:sticky;top:0;z-index:2}
+  tr:hover{background:#f3f8ff;cursor:pointer}
+  @media (max-width:760px){ .row{flex-direction:column} }
+
+  /* ---------- compact filters ---------- */
+  #filtersCard{display:block;margin-top:12px}
+  .filters-top{display:flex;gap:8px;align-items:center}
+  .filters-top .col{flex:1 1 240px;min-width:140px}
+  .filters-bottom{display:flex;gap:8px;margin-top:8px;align-items:center}
+  .filters-bottom .col{flex:1 1 200px;min-width:120px}
+  #tableWrap{margin-top:12px;height:calc(100vh - 340px);overflow:auto;border-radius:10px;background:#fff;padding:8px;box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02)}
+  @media (max-width:820px){ .filters-top,.filters-bottom{flex-direction:column} #tableWrap{height:auto} }
+
+  /* ---------- detail panel ---------- */
+  .detail-panel{position:fixed;right:18px;top:84px;width:420px;max-width:92%;background:#fff;border-radius:10px;box-shadow:0 12px 40px rgba(8,48,96,0.18);padding:14px;z-index:9999;display:none}
+  .detail-panel h3{margin:0 0 8px 0;font-size:16px;color:#08306b}
+  .detail-panel .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eef3fb;font-size:13px}
+  .detail-close{position:absolute;right:8px;top:8px;cursor:pointer;color:#888;font-weight:700}
+  @media (max-width:820px){ .detail-panel{left:8px;right:8px;top:80px;width:auto} }
+
+  /* small helpers */
+  .muted-2{color:#637381;font-size:13px;margin-top:8px}
+</style>
+
+<!-- ===== set your Apps Script /exec URL here (REPLACE this URL if needed) ===== -->
+<script>
+  // Edit this line: paste your Netlify function /api URL here:
+  window.API_URL = window.API_URL || "https://my-app-works.netlify.app/.netlify/functions/api";
+</script>
 </head>
 <body>
+<div class="wrap">
   <header>
-    <h2 style="margin:0">Dashboard Project</h2>
-    <nav id="tabs"></nav>
+    <h1>UserID Creator + Works Dashboard</h1>
+    <div class="tabs">
+      <div id="tabCreate" class="tab">Create</div>
+      <div id="tabDashboard" class="tab active">Dashboard</div>
+    </div>
   </header>
 
-  <div id="main"></div>
+  <!-- CREATE -->
+  <section id="createSection" class="card" style="display:none;">
+    <h2 style="margin:0 0 8px 0">Create / Update UserID</h2>
+    <div class="muted">Fill Name, Post, select Panchayats (multi) and Save.</div>
 
-<script>
-/* ====== CONFIG ====== */
-// Replace with your Netlify deployed API root (already set to your site)
-const API_URL = 'https://my-app-works.netlify.app/.netlify/functions/api';
+    <label for="name">Name</label>
+    <input id="name" placeholder="e.g. Irfan Qureshi">
 
-/* ====== Tabs registry ======= */
-const tabs = [
-  { id:'dashboard', title:'Dashboard', init:initDashboard, render:renderDashboard },
-  { id:'create', title:'Create UserID', init:initCreate, render:renderCreate }
-];
+    <label for="post">Post</label>
+    <select id="post"><option>Loading...</option></select>
 
-/* ====== boot ====== */
-function buildTabs(){
-  const nav = document.getElementById('tabs');
-  tabs.forEach(t => {
-    const btn = document.createElement('button');
-    btn.id = 'tab-'+t.id;
-    btn.textContent = t.title;
-    btn.onclick = () => openTab(t.id);
-    nav.appendChild(btn);
-  });
-}
-let currentTab = null;
-const inited = {};
-async function openTab(id){
-  if (currentTab === id) return;
-  currentTab = id;
-  const tab = tabs.find(x=>x.id===id);
-  const main = document.getElementById('main');
-  main.innerHTML = ''; // clear
-  if (tab.init && !inited[id]) { await tab.init(); inited[id] = true; }
-  if (tab.render) tab.render(main);
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.id === 'tab-'+id));
-}
+    <label for="panchayats">Panchayats (Ctrl/Cmd to multi-select)</label>
+    <select id="panchayats" multiple></select>
 
-/* ====== API helper ====== */
-async function api(action, payload = {}) {
-  try {
-    const body = { action, payload };
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    const text = await res.text();
-    try { return JSON.parse(text); } catch(e) { return text; }
-  } catch (err) {
-    console.error('API error', err);
-    throw err;
-  }
-}
+    <label for="dcode">DCode</label>
+    <input id="dcode" value="77">
 
-/* ========== Dashboard (login + filters + table) ========== */
-let dropdownData = null;
-let loggedUser = null;
+    <div style="margin-top:10px" class="row">
+      <div class="col"><button id="btnPreview" class="primary" style="background:#06a6a6">Preview</button></div>
+      <div class="col"><button id="btnSave" class="primary">Save & Open Dashboard</button></div>
+    </div>
 
-async function initDashboard(){
-  try {
-    const r = await api('getDropdownData');
-    if (r && r.ok && r.data) {
-      dropdownData = r.data;
-    } else if (r && r.data) {
-      dropdownData = r.data;
-    } else {
-      console.warn('getDropdownData returned unexpected:', r);
-      dropdownData = { engineers:[], works:[], status:[], years:[], allPanchayats:[], gpsByEngineer:{}, categories:[], updateTime:'' };
-    }
-  } catch (e) {
-    console.error('initDashboard failed', e);
-    dropdownData = { engineers:[], works:[], status:[], years:[], allPanchayats:[], gpsByEngineer:{}, categories:[], updateTime:'' };
-  }
-}
+    <div id="previewArea" style="margin-top:10px">
+      <div id="status" class="muted"></div>
+      <div id="preview" class="muted-2"></div>
+    </div>
 
-function renderDashboard(container){
-  container.innerHTML = `
-    <div class="card">
-      <h3 style="margin:0 0 8px 0">Dashboard</h3>
-      <div id="lastUpdate" class="muted" style="margin-bottom:8px">Last update: ${(dropdownData && dropdownData.updateTime) || ''}</div>
+    <hr style="margin:14px 0">
 
-      <div style="margin-bottom:8px">
-        <label>Login (UserID or Name)</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="loginInput" placeholder="Enter UserID or Name" style="flex:1;padding:8px;border-radius:6px;border:1px solid #ccc">
-          <button id="loginBtn" style="padding:8px 10px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Login</button>
-          <button id="logoutBtn" style="display:none;padding:8px 10px;border-radius:6px;background:#e07a5f;color:#fff;border:none">Logout</button>
+    <details>
+      <summary style="cursor:pointer">Debug / Last backend responses</summary>
+      <div style="margin-top:8px">
+        <pre id="debugCreate" class="debug">no calls yet</pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dashboardSection" class="card" style="display:block">
+    <h2 style="margin:0 0 8px 0">Works Dashboard</h2>
+    <div id="lastUpdate" class="muted">Loading...</div>
+
+    <label>Login (UserID or Name)</label>
+    <div class="row" style="align-items:center">
+      <input id="loginInput" placeholder="Enter UserID or Name">
+      <button id="loginBtn" class="primary" style="flex:0 0 160px;margin-left:8px">Login</button>
+      <button id="logoutBtn" style="background:#e07a5f;color:#fff;border:none;padding:10px 12px;border-radius:8px;display:none;margin-left:8px">Logout</button>
+    </div>
+
+    <div id="userInfo" class="muted" style="margin-top:8px"></div>
+
+    <div id="filtersCard" style="margin-top:12px;display:none">
+      <div class="filters-top">
+        <div class="col">
+          <label>Engineer</label>
+          <select id="engineer"></select>
         </div>
-        <div id="userInfo" style="margin-top:6px;color:#444"></div>
+        <div class="col">
+          <label>Panchayat (yours only)</label>
+          <select id="gp"></select>
+        </div>
       </div>
 
-      <div id="filtersCard" style="display:none;margin-top:10px;padding:8px;border:1px solid #eef3fb;border-radius:6px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <div style="flex:1;min-width:160px">
-            <label>Engineer</label><select id="engineer" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
-          <div style="flex:1;min-width:160px">
-            <label>Panchayat</label><select id="gp" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
-          <div style="flex:1;min-width:120px">
-            <label>Year</label><select id="year" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
-          <div style="flex:1;min-width:160px">
-            <label>Work</label><select id="work" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
-          <div style="flex:1;min-width:140px">
-            <label>Status</label><select id="status" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
-          <div style="flex:1;min-width:140px">
-            <label>Category</label><select id="category" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
-          </div>
+      <div class="filters-bottom">
+        <div class="col">
+          <label>Year</label>
+          <select id="year"></select>
         </div>
+        <div class="col">
+          <label>Work Type</label>
+          <select id="work"></select>
+        </div>
+        <div class="col">
+          <label>Status</label>
+          <select id="status"></select>
+        </div>
+        <div class="col">
+          <label>Category</label>
+          <select id="category"></select>
+        </div>
+      </div>
 
-        <div style="margin-top:8px">
-          <label>Search</label>
-          <input id="search" placeholder="keyword" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">
-        </div>
+      <label>Search</label>
+      <input id="search" placeholder="keyword">
 
-        <div style="margin-top:10px;text-align:right">
-          <button id="filterBtn" style="padding:8px 12px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Apply Filter</button>
-        </div>
+      <div style="margin-top:10px">
+        <button id="filterBtn" class="primary">Apply Filter</button>
       </div>
     </div>
 
-    <div id="tableWrap" style="margin-top:12px"></div>
-    <div id="dashStatus" style="margin-top:8px;color:#444"></div>
-  `;
+    <div id="tableWrap"></div>
 
-  // populate selects
-  populateSelect('engineer', dropdownData.engineers || []);
-  populateSelect('work', dropdownData.works || []);
-  populateSelect('status', dropdownData.status || []);
-  populateSelect('year', dropdownData.years || []);
-  populateSelect('category', dropdownData.categories || []);
-  // gp initially all (will be restricted after login)
-  populateSelect('gp', dropdownData.allPanchayats || []);
+    <details style="margin-top:12px">
+      <summary>Debug / Last backend responses</summary>
+      <pre id="debugDash" class="debug">no calls yet</pre>
+    </details>
+  </section>
 
-  // handlers
-  document.getElementById('loginBtn').addEventListener('click', async function(){
-    const v = document.getElementById('loginInput').value.trim();
-    if (!v) return alert('Enter UserID or Name');
-    await doLogin(v);
+  <footer class="muted" style="margin-top:10px">Make sure API URL (window.API_URL) points to your Netlify function.</footer>
+</div>
+
+<script>
+/* ---------- tiny helpers ---------- */
+function dbg(id, obj){
+  try { document.getElementById(id).textContent = JSON.stringify(obj, null, 2); }
+  catch(e){ console.log('dbg set fail', id, e); }
+}
+function showStatus(msg){ document.getElementById('status').innerText = msg; }
+function qs(id){ return document.getElementById(id); }
+
+/* ---------- tabs ---------- */
+const tabCreate = qs('tabCreate'), tabDash = qs('tabDashboard'), secCreate = qs('createSection'), secDash = qs('dashboardSection');
+tabCreate.addEventListener('click', ()=>{ tabCreate.classList.add('active'); tabDash.classList.remove('active'); secCreate.style.display='block'; secDash.style.display='none'; });
+tabDash.addEventListener('click', ()=>{ tabDash.classList.add('active'); tabCreate.classList.remove('active'); secCreate.style.display='none'; secDash.style.display='block'; });
+
+/* ---------- network helpers ---------- */
+async function api(action, payload){
+  if (!window.API_URL) throw new Error('API_URL not set');
+  const body = { action, payload };
+  const res = await fetch(window.API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch(e) { return txt; }
+}
 
-  document.getElementById('logoutBtn').addEventListener('click', function(){
-    loggedUser = null;
-    document.getElementById('userInfo').innerText = '';
-    document.getElementById('filtersCard').style.display = 'none';
-    document.getElementById('logoutBtn').style.display = 'none';
-    document.getElementById('loginInput').value = '';
-    document.getElementById('tableWrap').innerHTML = '';
-    document.getElementById('dashStatus').innerText = '';
-  });
+/* ---------- create page logic ---------- */
+async function loadCreateOptions(){
+  try {
+    const dd = await api('getDropdownData');
+    let data = dd && dd.data ? dd.data : (dd || {});
+    const posts = ['Engg','GRS','Schive','AE','Other'];
+    const postSel = qs('post'); postSel.innerHTML = '<option value="">--select post--</option>';
+    posts.forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; postSel.appendChild(o); });
 
-  document.getElementById('filterBtn').addEventListener('click', async function(){
-    if (!loggedUser || !loggedUser.valid) { alert('Please login first'); return; }
-    const filter = {
-      engineer: document.getElementById('engineer').value,
-      gp: document.getElementById('gp').value,
-      year: document.getElementById('year').value,
-      work: document.getElementById('work').value,
-      status: document.getElementById('status').value,
-      category: document.getElementById('category').value,
-      search: document.getElementById('search').value.trim()
-    };
-    await fetchTable(filter, loggedUser.userid);
-  });
+    const pans = data.allPanchayats || [];
+    const pSel = qs('panchayats'); pSel.innerHTML = '';
+    pans.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; pSel.appendChild(o); });
+
+    dbg('debugCreate', { posts, pans });
+  } catch(err){
+    dbg('debugCreate', {error: String(err)});
+  }
+}
+
+qs('btnPreview').addEventListener('click', async function(){
+  const name = qs('name').value.trim();
+  const post = qs('post').value.trim();
+  const dcode = qs('dcode').value.trim() || '77';
+  const sel = qs('panchayats');
+  const pans = Array.from(sel.selectedOptions).map(o=>o.value);
+  if (!name || !post || pans.length===0) { showStatus('Fill name, post and select at least 1 panchayat'); return; }
+  try {
+    const srRes = await api('getNextSrForPreview', {});
+    let sr = 1;
+    if (srRes && srRes.result) sr = srRes.result;
+    else if (typeof srRes === 'number') sr = srRes;
+    const a = (name.substr(0,3) || '').toLowerCase();
+    const b = (post.substr(0,2) || '').toLowerCase();
+    const d = ((''+dcode).slice(-2) || '').toLowerCase();
+    const s = ((''+sr).slice(-2) || '').toLowerCase();
+    const uid = (a + b + d + s).toLowerCase();
+    qs('preview').innerHTML = '<b>UserID (if new):</b> ' + uid + '<br><b>Panchayats:</b> ' + pans.join(', ');
+    showStatus('');
+    dbg('debugCreate', { preview_for: name, sr: sr, userid: uid });
+  } catch(err){
+    dbg('debugCreate', { error: String(err) });
+  }
+});
+
+qs('btnSave').addEventListener('click', async function(){
+  const name = qs('name').value.trim();
+  const post = qs('post').value.trim();
+  const dcode = qs('dcode').value.trim() || '77';
+  const sel = qs('panchayats');
+  const pans = Array.from(sel.selectedOptions).map(o=>o.value);
+  if (!name || !post || pans.length===0) { showStatus('Fill name, post and select at least 1 panchayat'); return; }
+  qs('btnSave').disabled = true;
+  showStatus('Saving...');
+  try {
+    const resp = await api('appendOrUpdateUser', { name, post, panchayats: pans, dcode });
+    dbg('debugCreate', resp);
+    showStatus('Saved: ' + (resp.result && resp.result.userid ? resp.result.userid : JSON.stringify(resp)));
+  } catch(err){
+    showStatus('Save error: ' + String(err));
+    dbg('debugCreate', { saveException: String(err) });
+  } finally {
+    qs('btnSave').disabled = false;
+  }
+});
+
+/* ---------- dashboard logic ---------- */
+let dropdownData = null;
+let loggedUser = null;
+
+async function initDashboardTemplates(){
+  try {
+    const dd = await api('getDropdownData', {});
+    if (dd && dd.data) dropdownData = dd.data;
+    else dropdownData = { engineers:[], works:[], status:[], years:[], allPanchayats:[], gpsByEngineer:{}, categories:[], updateTime:'' };
+    qs('lastUpdate') && (qs('lastUpdate').innerText = 'Last Update: ' + (dropdownData.updateTime || ''));
+    loadCreateOptions(); // also populate create lists
+  } catch(err){
+    dbg('debugDash', { error: String(err) });
+  }
 }
 
 function populateSelect(id, arr){
-  const sel = document.getElementById(id);
+  const sel = qs(id);
   if (!sel) return;
   sel.innerHTML = '<option value="">--All--</option>';
   (arr||[]).forEach(v => {
@@ -202,143 +282,247 @@ function populateSelect(id, arr){
   });
 }
 
+document.getElementById('loginBtn').addEventListener('click', function(){
+  const v = qs('loginInput').value.trim();
+  if (!v) return alert('Enter UserID or Name');
+  doLogin(v);
+});
+
+document.getElementById('logoutBtn').addEventListener('click', function(){
+  qs('loginInput').value = '';
+  qs('userInfo').innerText = '';
+  qs('filtersCard').style.display = 'none';
+  qs('tableWrap').innerHTML = '';
+  qs('logoutBtn').style.display = 'none';
+});
+
 async function doLogin(val){
   try {
-    const resp = await api('validateUser', { input: val });
-    // normalize response shapes
-    let r = resp;
-    if (r && r.body && typeof r.body === 'string') {
-      try { r = JSON.parse(r.body); } catch(e) { /* ignore */ }
-    }
-    if (!r) { alert('Login failed'); return; }
-    const userObj = (r.user && r.user.valid !== undefined) ? r.user : (r.user || r);
+    const res = await api('validateUser', { input: val });
+    dbg('debugDash', { validate: res });
+    let r = res;
+    if (r && r.user) r = r;
+    if (!r || (r.ok===false && !r.user)) { alert('Invalid user or backend error'); return; }
+    const userObj = (r.user && r.user.valid!==undefined) ? r.user : (r.user || r);
     if (!userObj || !userObj.valid) { alert('Invalid UserID/Name'); return; }
     loggedUser = userObj;
-    document.getElementById('userInfo').innerText = 'Logged in: ' + (userObj.name || userObj.userid) + ' — Panchayats: ' + ((userObj.panchayats||[]).join(', '));
+    qs('userInfo').innerText = 'Logged in: ' + (userObj.name || userObj.userid) + ' (' + (userObj.userid||'') + ') - Panchayats: ' + (userObj.panchayats||[]).join(', ');
+    qs('logoutBtn').style.display = 'inline-block';
     // gp dropdown = only user's panchayats
-    const gpSel = document.getElementById('gp');
-    gpSel.innerHTML = '<option value="">--All--</option>';
-    (userObj.panchayats||[]).forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; gpSel.appendChild(o); });
+    const gp = qs('gp'); gp.innerHTML = '<option value="">--All--</option>';
+    (userObj.panchayats || []).forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; gp.appendChild(o); });
 
-    // restrict engineers list to those who have these panchayats
-    const gpsByEngineer = dropdownData.gpsByEngineer || {};
-    const engineers = Object.keys(gpsByEngineer || {}).filter(e=>{
+    // filter engineers to only those who have these panchayats
+    const dd = dropdownData || {};
+    const gpsByEngineer = dd.gpsByEngineer || {};
+    const engines = Object.keys(gpsByEngineer).filter(e => {
       const arr = (gpsByEngineer[e]||[]).map(x=>(''+x).trim().toLowerCase());
       return (userObj.panchayats||[]).some(up => arr.indexOf((''+up).trim().toLowerCase()) !== -1);
     });
-    populateSelect('engineer', engineers);
-
-    document.getElementById('filtersCard').style.display = 'block';
-    document.getElementById('logoutBtn').style.display = 'inline-block';
-
-    // initial table load for this user
+    populateSelect('engineer', engines);
+    populateSelect('work', dd.works || []);
+    populateSelect('status', dd.status || []);
+    populateSelect('year', dd.years || []);
+    populateSelect('category', dd.categories || []);
+    qs('filtersCard').style.display = 'block';
     await fetchTable({}, userObj.userid);
-  } catch (e) {
-    console.error('Login error', e);
-    alert('Login error: ' + (e.message || e));
+  } catch(err){
+    dbg('debugDash', { loginError: String(err) });
+    alert('Login error: '+ String(err));
   }
 }
+
+qs('filterBtn').addEventListener('click', async function(){
+  const filter = {
+    engineer: qs('engineer').value,
+    gp: qs('gp').value,
+    year: qs('year').value,
+    work: qs('work').value,
+    status: qs('status').value,
+    category: qs('category').value,
+    search: qs('search').value.trim()
+  };
+  const userid = (new URLSearchParams(window.location.search)).get('userid') || qs('loginInput').value.trim();
+  await fetchTable(filter, userid);
+});
 
 async function fetchTable(filter, userid){
   try {
-    document.getElementById('dashStatus').textContent = 'Loading...';
+    qs('tableWrap').innerHTML = '<div class="muted">Loading...</div>';
     const payload = { filter: filter || {}, userid: userid || '' };
     const res = await api('getFilteredData', payload);
+    dbg('debugDash', { filteredRes: res });
     let rows = [];
-    let r = res;
-    if (r && r.body && typeof r.body === 'string') {
-      try { r = JSON.parse(r.body); } catch(e){ /* ignore */ }
+    if (res && res.rows) rows = res.rows;
+    else if (Array.isArray(res)) rows = res;
+    else if (res && res.body) {
+      try { const parsed = JSON.parse(res.body); if (parsed.rows) rows = parsed.rows; } catch(e){}
     }
-    if (r && r.ok && r.rows) rows = r.rows;
-    else if (Array.isArray(r)) rows = r;
-    else if (r.rows) rows = r.rows;
     renderTable(rows);
-    document.getElementById('dashStatus').textContent = 'Rows: ' + (rows.length || 0);
-  } catch (e) {
-    console.error('fetchTable error', e);
-    document.getElementById('dashStatus').textContent = 'Error fetching data';
+  } catch(err){
+    dbg('debugDash', { fetchTableError: String(err) });
+    qs('tableWrap').innerHTML = '<div class="muted">Error fetching data</div>';
   }
 }
 
+/* ---------- table rendering + details (updated) ---------- */
 function renderTable(rows){
-  const wrap = document.getElementById('tableWrap');
+  const wrap = qs('tableWrap');
   wrap.innerHTML = '';
-  if (!rows || rows.length === 0) { wrap.innerHTML = '<div class="card">No data for selected filters</div>'; return; }
+  if (!rows || rows.length === 0) { wrap.innerHTML = '<div class="card muted">No data for selected filters</div>'; return; }
 
-  const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
+  const tbl = document.createElement('table');
+  // header (client side)
+  const headers = [
+    "S No.","Name of work","Panchayat","Work Type","Year","Status",
+    "Unskilled","Semi-skilled","Skilled","Contingency","Material","Total Section",
+    "Exp Unskilled","Exp Semi-skilled","Exp Skilled","Exp Contingency","Exp Material","Total Exp",
+    "% Exp","Balance Mandays","Category"
+  ];
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; hr.appendChild(th); });
+  thead.appendChild(hr);
+  tbl.appendChild(thead);
 
-  // Adjust headers to expected columns — tweak if needed
-  const headers = ["S No","Engineer","Gram Panchayat","Type of work","Name of work","Year","Status","Unskilled","Semi-skilled","Skilled","Material","Contingency","Total Cost","..."];
-  const thead = document.createElement('tr');
-  headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; th.style.padding='6px'; th.style.border='1px solid #eee'; thead.appendChild(th); });
-  table.appendChild(thead);
-
-  rows.forEach(r => {
+  const tbody = document.createElement('tbody');
+  rows.forEach((r, idx) => {
     const tr = document.createElement('tr');
-    r.forEach(c => {
+    tr.addEventListener('click', () => { showDetails(r, idx+1); });
+
+    const row = Array.isArray(r) ? r : [];
+
+    // determine serial
+    let sr = idx + 1;
+    if (row[0] && !isNaN(Number(row[0]))) sr = Number(row[0]);
+
+    const visible = [
+      sr,            // S No.
+      row[4] || '',  // Name of work
+      row[2] || '',  // Panchayat
+      row[3] || '',  // Work Type
+      row[5] || '',  // Year
+      row[6] || '',  // Status
+      row[7] || '',  // Unskilled
+      row[8] || '',  // Semi-skilled
+      row[9] || '',  // Skilled
+      row[11] || '', // Contingency
+      row[10] || '', // Material
+      row[12] || '', // Total Section
+      row[13] || '', // Exp Unskilled
+      row[14] || '', // Exp Semi-skilled
+      row[15] || '', // Exp Skilled
+      row[17] || '', // Exp Contingency
+      row[16] || '', // Exp Material
+      row[18] || '', // Total Exp
+      row[21] || '', // % Exp
+      row[20] || '', // Balance Mandays
+      row[19] || ''  // Category
+    ];
+
+    visible.forEach(cellVal => {
       const td = document.createElement('td');
-      td.textContent = (c===null||c===undefined)?'':c;
-      td.style.padding='6px';
-      td.style.border='1px solid #eee';
+      td.textContent = (cellVal === null || cellVal === undefined) ? '' : cellVal;
       tr.appendChild(td);
     });
-    table.appendChild(tr);
+
+    tbody.appendChild(tr);
   });
-
-  wrap.appendChild(table);
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
 }
 
-/* ========== Create tab ========== */
+/* showDetails: show a detail panel on right side (or modal) */
+function showDetails(row, computedSr) {
+  const r = Array.isArray(row) ? row : [];
+  const sr = (r[0] && !isNaN(Number(r[0]))) ? Number(r[0]) : (computedSr || '');
+  const nameOfWork = r[4] || '';
+  const panchayat = r[2] || '';
+  const workType = r[3] || '';
+  const year = r[5] || '';
+  const status = r[6] || '';
 
-async function initCreate(){
-  if (!dropdownData) {
-    const r = await api('getDropdownData'); if (r && r.ok) dropdownData = r.data;
+  const unskilled = r[7] || '';
+  const semiskilled = r[8] || '';
+  const skilled = r[9] || '';
+  const contingency = r[11] || '';
+  const material = r[10] || '';
+  const totalSection = r[12] || '';
+
+  const expUnskilled = r[13] || '';
+  const expSemiskilled = r[14] || '';
+  const expSkilled = r[15] || '';
+  const expContingency = r[17] || '';
+  const expMaterial = r[16] || '';
+  const totalExp = r[18] || '';
+
+  const percentExp = r[21] || '';
+  const balanceMandays = r[20] || '';
+  const category = r[19] || '';
+  const remark = r[22] || '';
+
+  let panel = document.getElementById('detailPanel');
+  if (!panel) {
+    panel = document.createElement('div'); panel.id = 'detailPanel'; panel.className = 'detail-panel card';
+    panel.innerHTML = '<div class="detail-close" id="detailClose">✕</div><h3 id="detailTitle">Row Details</h3><div id="detailBody"></div>';
+    document.body.appendChild(panel);
+    document.getElementById('detailClose').addEventListener('click', ()=>{ panel.style.display='none'; });
   }
-}
 
-function renderCreate(container){
-  const posts = ['Engg','GRS','Schive','AE','Other']; // edit if needed
-  container.innerHTML = `
-    <div class="card">
-      <h3 style="margin:0 0 8px 0">Create / Update User</h3>
-      <div style="margin-bottom:8px"><label>Name</label><input id="c_name" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></div>
-      <div style="margin-bottom:8px"><label>Post</label><select id="c_post" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">${posts.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
-      <div style="margin-bottom:8px"><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:160px;width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></select></div>
-      <div style="margin-bottom:8px"><label>DCode</label><input id="c_dcode" value="77" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></div>
-      <div style="margin-top:8px;text-align:right"><button id="c_save" style="padding:8px 12px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Save</button></div>
-      <div id="c_status" style="margin-top:8px;color:#444"></div>
-    </div>
-  `;
-  const sel = container.querySelector('#c_pans');
-  const pans = (dropdownData && (dropdownData.allPanchayats || dropdownData.panchayats || [])) || [];
-  pans.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+  const title = panel.querySelector('#detailTitle');
+  const body = panel.querySelector('#detailBody');
+  title.textContent = (nameOfWork || 'Name of work');
+  body.innerHTML = '';
 
-  container.querySelector('#c_save').onclick = async ()=>{
-    const name = container.querySelector('#c_name').value.trim();
-    const post = container.querySelector('#c_post').value;
-    const dcode = container.querySelector('#c_dcode').value.trim() || '77';
-    const pansSel = Array.from(container.querySelector('#c_pans').selectedOptions).map(o=>o.value);
-    if (!name || pansSel.length===0) { container.querySelector('#c_status').textContent = 'Fill required fields (name + at least one panchayat)'; return; }
-    container.querySelector('#c_status').textContent = 'Saving...';
-    try {
-      const resp = await api('appendOrUpdateUser', { name, post, panchayats: pansSel, dcode: dcode });
-      let r = resp;
-      if (r && r.body && typeof r.body === 'string') {
-        try { r = JSON.parse(r.body); } catch(e){ /* ignore */ }
-      }
-      container.querySelector('#c_status').textContent = JSON.stringify(r);
-      // If created, optionally open dashboard and auto-login — skipping automatic redirect to keep UX simple
-    } catch (err) {
-      container.querySelector('#c_status').textContent = 'Error: ' + String(err);
-    }
+  const addKV = (k,v) => {
+    const kv = document.createElement('div'); kv.className='kv';
+    kv.style.display='flex'; kv.style.justifyContent='space-between'; kv.style.padding='6px 0'; kv.style.borderBottom='1px dashed #eef3fb';
+    const left = document.createElement('div'); left.style.color='#444'; left.textContent=k;
+    const right = document.createElement('div'); right.style.color='#062'; right.textContent=v;
+    kv.appendChild(left); kv.appendChild(right); body.appendChild(kv);
   };
+
+  addKV('S No.', sr);
+  addKV('Name of work', nameOfWork);
+  addKV('Panchayat', panchayat);
+  addKV('Work Type', workType);
+  addKV('Year', year);
+  addKV('Status', status);
+
+  addKV('Unskilled (section)', unskilled);
+  addKV('Semi-skilled (section)', semiskilled);
+  addKV('Skilled (section)', skilled);
+  addKV('Contingency (section)', contingency);
+  addKV('Material (section)', material);
+  addKV('Total Section', totalSection);
+
+  addKV('Exp. Unskilled', expUnskilled);
+  addKV('Exp. Semi-skilled', expSemiskilled);
+  addKV('Exp. Skilled', expSkilled);
+  addKV('Exp. Contingency', expContingency);
+  addKV('Exp. Material', expMaterial);
+  addKV('Total Expenditure', totalExp);
+
+  addKV('% Expenditure', percentExp);
+  addKV('Balance Mandays', balanceMandays);
+  addKV('Category', category);
+  if (remark) addKV('Remark', remark);
+
+  panel.style.display = 'block';
+  panel.scrollTop = 0;
 }
 
-/* ====== start UI ====== */
-buildTabs();
-openTab('dashboard');
+/* ---------- on load ---------- */
+(async function onLoad(){
+  await initDashboardTemplates();
+  // show dashboard tab by default
+  tabDash.click();
+
+  // auto-login if userid param present
+  const urlParams = new URLSearchParams(window.location.search);
+  const u = urlParams.get('userid');
+  if (u) { qs('loginInput').value = u; await doLogin(u); }
+})();
 </script>
 </body>
 </html>
