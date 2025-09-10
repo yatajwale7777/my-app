@@ -27,7 +27,7 @@ function parseEvent(event) {
   try {
     if (event.httpMethod === 'POST') {
       const ct = (event.headers && (event.headers['content-type'] || event.headers['Content-Type'])) || '';
-      if (ct.toLowerCase().indexOf('application/json') !== -1) {
+      if (typeof ct === 'string' && ct.toLowerCase().indexOf('application/json') !== -1) {
         params = JSON.parse(event.body || '{}');
       } else {
         // try to parse as urlencoded
@@ -206,4 +206,33 @@ exports.handler = async function(event) {
           valueInputOption: 'RAW',
           requestBody: { values: [[ sr, p.name, p.post, p.panchayats.join(', '), dcode, userid ]] }
         });
-        return { statusCode:200, body: JSON.stringify({ ok:true, result:{ action:'created', sr, userid
+        return { statusCode:200, body: JSON.stringify({ ok:true, result:{ action:'created', sr, userid } }) };
+      }
+    }
+
+    // ---------- validateUser ----------
+    if (action === 'validateUser' || action === 'validateUserCredential') {
+      const input = (payload && payload.input) || params.input || params.userid || params.inputValue;
+      if (!input) return { statusCode:400, body: JSON.stringify({ ok:false, error:'no input provided' }) };
+      const us = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'userid!A2:F' });
+      const users = us.data.values || [];
+      const val = norm(input);
+      for (let i=0;i<users.length;i++){
+        const name = (users[i][1]||'').toString().trim();
+        const userid = (users[i][5]||'').toString().trim();
+        if (norm(name) === val || norm(userid) === val) {
+          const pans = (users[i][3]||'').toString().split(/\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+          return { statusCode:200, body: JSON.stringify({ ok:true, user:{ valid:true, name: name, userid: userid, panchayats: pans } }) };
+        }
+      }
+      return { statusCode:200, body: JSON.stringify({ ok:false, user:{ valid:false } }) };
+    }
+
+    // unknown action
+    return { statusCode:400, body: JSON.stringify({ ok:false, error:'unknown action: ' + action }) };
+
+  } catch (err) {
+    console.error('API error:', err && err.stack ? err.stack : err);
+    return { statusCode:500, body: JSON.stringify({ ok:false, error: (err && err.message) ? err.message : String(err) }) };
+  }
+};
