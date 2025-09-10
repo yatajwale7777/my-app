@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Apps Script Dashboard Project</title>
+  <style>
+    body{font-family:Arial,margin:12px}
+    header{display:flex;gap:8px;align-items:center}
+    #tabs button{margin-right:6px;padding:8px;border-radius:6px;border:1px solid #ccc;background:#f3f6fb;cursor:pointer}
+    #tabs button.active{background:#0b63ff;color:#fff;border:none}
+    #main{margin-top:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:6px;border:1px solid #eee;text-align:left}
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Dashboard Project</h2>
+    <nav id="tabs" style="margin-left:16px"></nav>
+  </header>
+
+  <div id="main"></div>
+
+<script>
+/* ====== CONFIG ====== */
+const API_URL = '/.netlify/functions/api'; // netlify function endpoint
+
+/* ====== Tabs registry =======
+   Add new tab entries here when needed (labour, master, nmr etc.)
+   For each tab provide id, title, init (optional), render (required)
+*/
+const tabs = [
+  { id:'dashboard', title:'Dashboard', init:initDashboard, render:renderDashboard },
+  { id:'create', title:'Create UserID', init:initCreate, render:renderCreate }
+];
+
+/* ====== boot ====== */
+function buildTabs(){
+  const nav = document.getElementById('tabs');
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.id = 'tab-'+t.id;
+    btn.textContent = t.title;
+    btn.onclick = () => openTab(t.id);
+    nav.appendChild(btn);
+  });
+}
+let currentTab = null;
+const inited = {};
+async function openTab(id){
+  if (currentTab === id) return;
+  currentTab = id;
+  const tab = tabs.find(x=>x.id===id);
+  const main = document.getElementById('main');
+  main.innerHTML = ''; // clear
+  if (tab.init && !inited[id]) { await tab.init(); inited[id] = true; }
+  if (tab.render) tab.render(main);
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.id === 'tab-'+id));
+}
+
+/* ====== API helper ====== */
+async function api(action, payload = {}) {
+  const body = { action, payload };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+/* ====== Dashboard tab ====== */
+let dropdownData = null;
+async function initDashboard(){
+  const r = await api('getDropdownData');
+  if (r && r.ok) dropdownData = r.data;
+}
+function renderDashboard(container){
+  container.innerHTML = `
+    <h3>Dashboard</h3>
+    <div id="filters"></div>
+    <div style="margin-top:8px"><button id="loadBtn">Load Data</button></div>
+    <div id="tableWrap" style="margin-top:8px"></div>
+  `;
+  document.getElementById('loadBtn').onclick = async ()=>{
+    const res = await api('getFilteredData', { filter: {}, userid: '' });
+    renderTable(res.rows || res || []);
+  };
+}
+function renderTable(rows){
+  const wrap = document.getElementById('tableWrap');
+  if (!rows || rows.length===0){ wrap.innerHTML = '<div>No data</div>'; return; }
+  const table = document.createElement('table');
+  // header: update as per your output columns
+  const header = ['S No','Engineer','Gram Panchayat','Work','Year','Status','...'];
+  const thead = document.createElement('tr');
+  header.forEach(h=>{ const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+  table.appendChild(thead);
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+    table.appendChild(tr);
+  });
+  wrap.innerHTML = ''; wrap.appendChild(table);
+}
+
+/* ====== Create tab ====== */
+async function initCreate(){
+  if (!dropdownData) {
+    const r = await api('getDropdownData'); if (r && r.ok) dropdownData = r.data;
+  }
+}
+function renderCreate(container){
+  const posts = ['Engg','GRS','Schive','AE','Other']; // edit if needed
+  container.innerHTML = `
+    <h3>Create / Update User</h3>
+    <div><label>Name</label><input id="c_name"></div>
+    <div><label>Post</label><select id="c_post">${posts.map(p=>`<option>${p}</option>`).join('')}</select></div>
+    <div><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:120px"></select></div>
+    <div style="margin-top:8px"><button id="c_save">Save</button></div>
+    <div id="c_status" style="margin-top:8px;color:green"></div>
+  `;
+  // fill panchayats from dropdownData (Sheet11 unique C)
+  const sel = container.querySelector('#c_pans');
+  const pans = (dropdownData && dropdownData.allPanchayats) || [];
+  pans.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+
+  container.querySelector('#c_save').onclick = async ()=>{
+    const name = container.querySelector('#c_name').value.trim();
+    const post = container.querySelector('#c_post').value;
+    const pansSel = Array.from(container.querySelector('#c_pans').selectedOptions).map(o=>o.value);
+    if (!name || pansSel.length===0) { document.getElementById('c_status').textContent = 'Fill required fields'; return; }
+    const resp = await api('appendOrUpdateUser', { name, post, panchayats: pansSel, dcode:'77' });
+    document.getElementById('c_status').textContent = JSON.stringify(resp);
+  };
+}
+
+/* ====== init UI ====== */
+buildTabs();
+openTab('dashboard');
+</script>
+</body>
+</html>
