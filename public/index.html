@@ -5,26 +5,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Apps Script Dashboard Project</title>
   <style>
-    body{font-family:Arial,margin:12px}
-    header{display:flex;gap:8px;align-items:center}
+    body{font-family:Arial,margin:12px;color:#172b4d}
+    header{display:flex;gap:8px;align-items:center;justify-content:space-between}
+    #tabs{margin-left:16px}
     #tabs button{margin-right:6px;padding:8px;border-radius:6px;border:1px solid #ccc;background:#f3f6fb;cursor:pointer}
     #tabs button.active{background:#0b63ff;color:#fff;border:none}
     #main{margin-top:12px}
     table{width:100%;border-collapse:collapse}
     th,td{padding:6px;border:1px solid #eee;text-align:left}
+    input,select,button{font-size:14px}
+    .muted{color:#637381}
+    .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 6px 20px rgba(20,30,60,0.04)}
   </style>
 </head>
 <body>
   <header>
-    <h2>Dashboard Project</h2>
-    <nav id="tabs" style="margin-left:16px"></nav>
+    <h2 style="margin:0">Dashboard Project</h2>
+    <nav id="tabs"></nav>
   </header>
 
   <div id="main"></div>
 
 <script>
 /* ====== CONFIG ====== */
-// ✅ Replace with your Netlify deployed API root
+// Replace with your Netlify deployed API root (already set to your site)
 const API_URL = 'https://my-app-works.netlify.app/.netlify/functions/api';
 
 /* ====== Tabs registry ======= */
@@ -59,70 +63,256 @@ async function openTab(id){
 
 /* ====== API helper ====== */
 async function api(action, payload = {}) {
-  const body = { action, payload };
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  return res.json();
+  try {
+    const body = { action, payload };
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch(e) { return text; }
+  } catch (err) {
+    console.error('API error', err);
+    throw err;
+  }
 }
 
-/* ====== Dashboard tab ====== */
+/* ========== Dashboard (login + filters + table) ========== */
 let dropdownData = null;
+let loggedUser = null;
+
 async function initDashboard(){
-  const r = await api('getDropdownData');
-  if (r && r.ok) dropdownData = r.data;
+  try {
+    const r = await api('getDropdownData');
+    if (r && r.ok && r.data) {
+      dropdownData = r.data;
+    } else if (r && r.data) {
+      dropdownData = r.data;
+    } else {
+      console.warn('getDropdownData returned unexpected:', r);
+      dropdownData = { engineers:[], works:[], status:[], years:[], allPanchayats:[], gpsByEngineer:{}, categories:[], updateTime:'' };
+    }
+  } catch (e) {
+    console.error('initDashboard failed', e);
+    dropdownData = { engineers:[], works:[], status:[], years:[], allPanchayats:[], gpsByEngineer:{}, categories:[], updateTime:'' };
+  }
 }
+
 function renderDashboard(container){
   container.innerHTML = `
-    <h3>Dashboard</h3>
-    <div id="filters"></div>
-    <div style="margin-top:8px"><button id="loadBtn">Load Data</button></div>
-    <div id="tableWrap" style="margin-top:8px"></div>
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">Dashboard</h3>
+      <div id="lastUpdate" class="muted" style="margin-bottom:8px">Last update: ${(dropdownData && dropdownData.updateTime) || ''}</div>
+
+      <div style="margin-bottom:8px">
+        <label>Login (UserID or Name)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="loginInput" placeholder="Enter UserID or Name" style="flex:1;padding:8px;border-radius:6px;border:1px solid #ccc">
+          <button id="loginBtn" style="padding:8px 10px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Login</button>
+          <button id="logoutBtn" style="display:none;padding:8px 10px;border-radius:6px;background:#e07a5f;color:#fff;border:none">Logout</button>
+        </div>
+        <div id="userInfo" style="margin-top:6px;color:#444"></div>
+      </div>
+
+      <div id="filtersCard" style="display:none;margin-top:10px;padding:8px;border:1px solid #eef3fb;border-radius:6px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <label>Engineer</label><select id="engineer" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label>Panchayat</label><select id="gp" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label>Year</label><select id="year" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label>Work</label><select id="work" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label>Status</label><select id="status" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label>Category</label><select id="category" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc"></select>
+          </div>
+        </div>
+
+        <div style="margin-top:8px">
+          <label>Search</label>
+          <input id="search" placeholder="keyword" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">
+        </div>
+
+        <div style="margin-top:10px;text-align:right">
+          <button id="filterBtn" style="padding:8px 12px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Apply Filter</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tableWrap" style="margin-top:12px"></div>
+    <div id="dashStatus" style="margin-top:8px;color:#444"></div>
   `;
-  document.getElementById('loadBtn').onclick = async ()=>{
-    const res = await api('getFilteredData', { filter: {}, userid: '' });
-    renderTable(res.rows || res || []);
-  };
-}
-function renderTable(rows){
-  const wrap = document.getElementById('tableWrap');
-  if (!rows || rows.length===0){ wrap.innerHTML = '<div>No data</div>'; return; }
-  const table = document.createElement('table');
-  // header: update as per your output columns
-  const header = ['S No','Engineer','Gram Panchayat','Work','Year','Status','...'];
-  const thead = document.createElement('tr');
-  header.forEach(h=>{ const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
-  table.appendChild(thead);
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
-    table.appendChild(tr);
+
+  // populate selects
+  populateSelect('engineer', dropdownData.engineers || []);
+  populateSelect('work', dropdownData.works || []);
+  populateSelect('status', dropdownData.status || []);
+  populateSelect('year', dropdownData.years || []);
+  populateSelect('category', dropdownData.categories || []);
+  // gp initially all (will be restricted after login)
+  populateSelect('gp', dropdownData.allPanchayats || []);
+
+  // handlers
+  document.getElementById('loginBtn').addEventListener('click', async function(){
+    const v = document.getElementById('loginInput').value.trim();
+    if (!v) return alert('Enter UserID or Name');
+    await doLogin(v);
   });
-  wrap.innerHTML = ''; wrap.appendChild(table);
+
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    loggedUser = null;
+    document.getElementById('userInfo').innerText = '';
+    document.getElementById('filtersCard').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('loginInput').value = '';
+    document.getElementById('tableWrap').innerHTML = '';
+    document.getElementById('dashStatus').innerText = '';
+  });
+
+  document.getElementById('filterBtn').addEventListener('click', async function(){
+    if (!loggedUser || !loggedUser.valid) { alert('Please login first'); return; }
+    const filter = {
+      engineer: document.getElementById('engineer').value,
+      gp: document.getElementById('gp').value,
+      year: document.getElementById('year').value,
+      work: document.getElementById('work').value,
+      status: document.getElementById('status').value,
+      category: document.getElementById('category').value,
+      search: document.getElementById('search').value.trim()
+    };
+    await fetchTable(filter, loggedUser.userid);
+  });
 }
 
-/* ====== Create tab ====== */
+function populateSelect(id, arr){
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">--All--</option>';
+  (arr||[]).forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+}
+
+async function doLogin(val){
+  try {
+    const resp = await api('validateUser', { input: val });
+    // normalize response shapes
+    let r = resp;
+    if (r && r.body && typeof r.body === 'string') {
+      try { r = JSON.parse(r.body); } catch(e) { /* ignore */ }
+    }
+    if (!r) { alert('Login failed'); return; }
+    const userObj = (r.user && r.user.valid !== undefined) ? r.user : (r.user || r);
+    if (!userObj || !userObj.valid) { alert('Invalid UserID/Name'); return; }
+    loggedUser = userObj;
+    document.getElementById('userInfo').innerText = 'Logged in: ' + (userObj.name || userObj.userid) + ' — Panchayats: ' + ((userObj.panchayats||[]).join(', '));
+    // gp dropdown = only user's panchayats
+    const gpSel = document.getElementById('gp');
+    gpSel.innerHTML = '<option value="">--All--</option>';
+    (userObj.panchayats||[]).forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; gpSel.appendChild(o); });
+
+    // restrict engineers list to those who have these panchayats
+    const gpsByEngineer = dropdownData.gpsByEngineer || {};
+    const engineers = Object.keys(gpsByEngineer || {}).filter(e=>{
+      const arr = (gpsByEngineer[e]||[]).map(x=>(''+x).trim().toLowerCase());
+      return (userObj.panchayats||[]).some(up => arr.indexOf((''+up).trim().toLowerCase()) !== -1);
+    });
+    populateSelect('engineer', engineers);
+
+    document.getElementById('filtersCard').style.display = 'block';
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+
+    // initial table load for this user
+    await fetchTable({}, userObj.userid);
+  } catch (e) {
+    console.error('Login error', e);
+    alert('Login error: ' + (e.message || e));
+  }
+}
+
+async function fetchTable(filter, userid){
+  try {
+    document.getElementById('dashStatus').textContent = 'Loading...';
+    const payload = { filter: filter || {}, userid: userid || '' };
+    const res = await api('getFilteredData', payload);
+    let rows = [];
+    let r = res;
+    if (r && r.body && typeof r.body === 'string') {
+      try { r = JSON.parse(r.body); } catch(e){ /* ignore */ }
+    }
+    if (r && r.ok && r.rows) rows = r.rows;
+    else if (Array.isArray(r)) rows = r;
+    else if (r.rows) rows = r.rows;
+    renderTable(rows);
+    document.getElementById('dashStatus').textContent = 'Rows: ' + (rows.length || 0);
+  } catch (e) {
+    console.error('fetchTable error', e);
+    document.getElementById('dashStatus').textContent = 'Error fetching data';
+  }
+}
+
+function renderTable(rows){
+  const wrap = document.getElementById('tableWrap');
+  wrap.innerHTML = '';
+  if (!rows || rows.length === 0) { wrap.innerHTML = '<div class="card">No data for selected filters</div>'; return; }
+
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+
+  // Adjust headers to expected columns — tweak if needed
+  const headers = ["S No","Engineer","Gram Panchayat","Type of work","Name of work","Year","Status","Unskilled","Semi-skilled","Skilled","Material","Contingency","Total Cost","..."];
+  const thead = document.createElement('tr');
+  headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; th.style.padding='6px'; th.style.border='1px solid #eee'; thead.appendChild(th); });
+  table.appendChild(thead);
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    r.forEach(c => {
+      const td = document.createElement('td');
+      td.textContent = (c===null||c===undefined)?'':c;
+      td.style.padding='6px';
+      td.style.border='1px solid #eee';
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+
+  wrap.appendChild(table);
+}
+
+/* ========== Create tab ========== */
+
 async function initCreate(){
   if (!dropdownData) {
     const r = await api('getDropdownData'); if (r && r.ok) dropdownData = r.data;
   }
 }
+
 function renderCreate(container){
   const posts = ['Engg','GRS','Schive','AE','Other']; // edit if needed
   container.innerHTML = `
-    <h3>Create / Update User</h3>
-    <div style="margin-bottom:8px"><label>Name</label><input id="c_name" style="width:100%"></div>
-    <div style="margin-bottom:8px"><label>Post</label><select id="c_post" style="width:100%">${posts.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
-    <div style="margin-bottom:8px"><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:120px;width:100%"></select></div>
-    <div style="margin-bottom:8px"><label>DCode</label><input id="c_dcode" value="77" style="width:100%"></div>
-    <div style="margin-top:8px"><button id="c_save">Save</button></div>
-    <div id="c_status" style="margin-top:8px;color:green"></div>
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">Create / Update User</h3>
+      <div style="margin-bottom:8px"><label>Name</label><input id="c_name" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></div>
+      <div style="margin-bottom:8px"><label>Post</label><select id="c_post" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">${posts.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
+      <div style="margin-bottom:8px"><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:160px;width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></select></div>
+      <div style="margin-bottom:8px"><label>DCode</label><input id="c_dcode" value="77" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></div>
+      <div style="margin-top:8px;text-align:right"><button id="c_save" style="padding:8px 12px;border-radius:6px;background:#0b63ff;color:#fff;border:none">Save</button></div>
+      <div id="c_status" style="margin-top:8px;color:#444"></div>
+    </div>
   `;
-  // fill panchayats from dropdownData (Sheet11 unique C)
   const sel = container.querySelector('#c_pans');
-  const pans = (dropdownData && dropdownData.allPanchayats) || [];
+  const pans = (dropdownData && (dropdownData.allPanchayats || dropdownData.panchayats || [])) || [];
   pans.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
 
   container.querySelector('#c_save').onclick = async ()=>{
@@ -134,18 +324,19 @@ function renderCreate(container){
     container.querySelector('#c_status').textContent = 'Saving...';
     try {
       const resp = await api('appendOrUpdateUser', { name, post, panchayats: pansSel, dcode: dcode });
-      // resp can be { statusCode:..., body: '...'} depending on function wrapper — normalize:
-      let result = resp;
-      if (resp && resp.body && typeof resp.body === 'string') {
-        try { result = JSON.parse(resp.body); } catch(e) { result = resp; }
+      let r = resp;
+      if (r && r.body && typeof r.body === 'string') {
+        try { r = JSON.parse(r.body); } catch(e){ /* ignore */ }
       }
-      container.querySelector('#c_status').textContent = JSON.stringify(result);
-    } catch(err) {
+      container.querySelector('#c_status').textContent = JSON.stringify(r);
+      // If created, optionally open dashboard and auto-login — skipping automatic redirect to keep UX simple
+    } catch (err) {
       container.querySelector('#c_status').textContent = 'Error: ' + String(err);
     }
   };
 }
-/* ====== init UI ====== */
+
+/* ====== start UI ====== */
 buildTabs();
 openTab('dashboard');
 </script>
