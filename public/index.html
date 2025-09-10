@@ -24,12 +24,10 @@
 
 <script>
 /* ====== CONFIG ====== */
-const API_URL = '/.netlify/functions/api'; // netlify function endpoint
+// ✅ Replace with your Netlify deployed API root
+const API_URL = 'https://my-app-works.netlify.app/.netlify/functions/api';
 
-/* ====== Tabs registry =======
-   Add new tab entries here when needed (labour, master, nmr etc.)
-   For each tab provide id, title, init (optional), render (required)
-*/
+/* ====== Tabs registry ======= */
 const tabs = [
   { id:'dashboard', title:'Dashboard', init:initDashboard, render:renderDashboard },
   { id:'create', title:'Create UserID', init:initCreate, render:renderCreate }
@@ -115,9 +113,10 @@ function renderCreate(container){
   const posts = ['Engg','GRS','Schive','AE','Other']; // edit if needed
   container.innerHTML = `
     <h3>Create / Update User</h3>
-    <div><label>Name</label><input id="c_name"></div>
-    <div><label>Post</label><select id="c_post">${posts.map(p=>`<option>${p}</option>`).join('')}</select></div>
-    <div><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:120px"></select></div>
+    <div style="margin-bottom:8px"><label>Name</label><input id="c_name" style="width:100%"></div>
+    <div style="margin-bottom:8px"><label>Post</label><select id="c_post" style="width:100%">${posts.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
+    <div style="margin-bottom:8px"><label>Panchayats (Ctrl/Cmd select)</label><select id="c_pans" multiple style="height:120px;width:100%"></select></div>
+    <div style="margin-bottom:8px"><label>DCode</label><input id="c_dcode" value="77" style="width:100%"></div>
     <div style="margin-top:8px"><button id="c_save">Save</button></div>
     <div id="c_status" style="margin-top:8px;color:green"></div>
   `;
@@ -129,13 +128,23 @@ function renderCreate(container){
   container.querySelector('#c_save').onclick = async ()=>{
     const name = container.querySelector('#c_name').value.trim();
     const post = container.querySelector('#c_post').value;
+    const dcode = container.querySelector('#c_dcode').value.trim() || '77';
     const pansSel = Array.from(container.querySelector('#c_pans').selectedOptions).map(o=>o.value);
-    if (!name || pansSel.length===0) { document.getElementById('c_status').textContent = 'Fill required fields'; return; }
-    const resp = await api('appendOrUpdateUser', { name, post, panchayats: pansSel, dcode:'77' });
-    document.getElementById('c_status').textContent = JSON.stringify(resp);
+    if (!name || pansSel.length===0) { container.querySelector('#c_status').textContent = 'Fill required fields (name + at least one panchayat)'; return; }
+    container.querySelector('#c_status').textContent = 'Saving...';
+    try {
+      const resp = await api('appendOrUpdateUser', { name, post, panchayats: pansSel, dcode: dcode });
+      // resp can be { statusCode:..., body: '...'} depending on function wrapper — normalize:
+      let result = resp;
+      if (resp && resp.body && typeof resp.body === 'string') {
+        try { result = JSON.parse(resp.body); } catch(e) { result = resp; }
+      }
+      container.querySelector('#c_status').textContent = JSON.stringify(result);
+    } catch(err) {
+      container.querySelector('#c_status').textContent = 'Error: ' + String(err);
+    }
   };
 }
-
 /* ====== init UI ====== */
 buildTabs();
 openTab('dashboard');
