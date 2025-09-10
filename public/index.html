@@ -67,6 +67,7 @@
     font-size: 14px !important;
     min-width: 120px;
   }
+}
 
   /* Make logout button similar size */
   #logoutBtn {
@@ -106,7 +107,39 @@
 
   /* Reduce card paddings for compactness */
   .card { padding: 10px !important; }
+/* MOBILE / SMALL SCREEN DROPDOWNS COMPACT */
+@media (max-width: 520px) {
+  /* Compact filters */
+  #filtersCard {
+    padding: 6px !important;
+  }
+
+  #filtersCard label {
+    margin-top: 4px !important;
+    font-size: 13px !important;
+  }
+
+  #filtersCard select,
+  #filtersCard input {
+    width: 100% !important;
+    margin: 2px 0 !important;
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+    border-radius: 4px !important;
+  }
+
+  /* Reduce spacing between dropdowns */
+  #filtersCard div {
+    margin-bottom: 4px !important;
+  }
+
+  /* Reduce gap between stacked filter blocks */
+  .filters-top,
+  .filters-bottom {
+    gap: 4px !important;
+  }
 }
+
 </style>
 
 <!-- ===== set your Apps Script /exec URL here (REPLACE this URL if needed) ===== -->
