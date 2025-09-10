@@ -46,6 +46,67 @@
 
   /* small helpers */
   .muted-2{color:#637381;font-size:13px;margin-top:8px}
+/* MOBILE / SMALL SCREENS TWEAKS */
+@media (max-width: 520px) {
+  /* Make header / controls stack vertically */
+  .row, .filters-top, .filters-bottom {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  /* Reduce input/button paddings so things don't overflow */
+  input, select, button {
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+  }
+
+  /* Login button: don't stretch too tall, keep reasonable width */
+  #loginBtn {
+    flex: 0 0 auto !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 120px;
+  }
+
+  /* Make logout button similar size */
+  #logoutBtn {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 120px;
+  }
+
+  /* Ensure the input next to buttons stretches full width when stacked */
+  #loginInput {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Filters: make selects full width and close gap */
+  #filtersCard select, #filtersCard input {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Table container: reduce vertical height on small screens */
+  #tableWrap {
+    height: auto !important;
+    max-height: calc(100vh - 300px) !important;
+  }
+
+  /* Detail panel becomes bottom modal (full width) on small screens */
+  .detail-panel {
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 8px !important;
+    width: auto !important;
+    max-height: 60vh;
+    overflow: auto;
+  }
+
+  /* Reduce card paddings for compactness */
+  .card { padding: 10px !important; }
+}
 </style>
 
 <!-- ===== set your Apps Script /exec URL here (REPLACE this URL if needed) ===== -->
